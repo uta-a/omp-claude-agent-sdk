@@ -2,7 +2,7 @@
 
 Claude Agent SDK 経由で Claude を使う [Oh My Pi (omp)](https://github.com/can1357/oh-my-pi) プラグインです。
 
-`/model` の **`anthropic agent sdk`** カテゴリに、バージョン番号・日付を含む正確なモデル ID と正式名を表示します。例：
+`/model` の **`anthropic-agent-sdk`** カテゴリに、バージョン番号・日付を含む正確なモデル ID と正式名を表示します。例：
 
 - `claude-fable-5-1` — Claude Fable 5.1
 - `claude-fable-5` — Claude Fable 5
@@ -26,10 +26,10 @@ GitHub から直接インストールできます。npm 公開は不要です。
 
 ```sh
 omp plugin install github:uta-a/omp-claude-agent-sdk
-omp --model "anthropic agent sdk/claude-opus-5-5"
+omp --model anthropic-agent-sdk/claude-opus-5-5
 ```
 
-バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.3.0` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
+バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.4.0` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
 
 ## ローカル開発
 
@@ -37,21 +37,21 @@ omp --model "anthropic agent sdk/claude-opus-5-5"
 
 ```sh
 bun install
-omp -e ./src/index.ts --model "anthropic agent sdk/claude-opus-5-5"
+omp -e ./src/index.ts --model anthropic-agent-sdk/claude-opus-5-5
 ```
 
 継続的に使う場合はローカルプラグインとしてリンクします。これはユーザーの omp プラグイン設定を変更します。
 
 ```sh
 omp plugin link .
-omp --model "anthropic agent sdk/claude-opus-5-5"
+omp --model anthropic-agent-sdk/claude-opus-5-5
 ```
 
 ### `/model` から選ぶ
 
-インストール後に omp を起動（既に起動中なら再起動）し、`/model` を開きます。左側のカテゴリ **`anthropic agent sdk`** を選ぶと、`claude-fable-5-1` などの番号付きモデル ID が並び、詳細には `Claude Fable 5.1` のような正式名が表示されます。モデルを選んで Enter を押し、画面下のロール（通常の会話用なら `default`）を選んで Enter で適用してください。
+インストール後に omp を起動（既に起動中なら再起動）し、`/model` を開きます。左側のカテゴリ **`anthropic-agent-sdk`** を選ぶと、`claude-fable-5-1` などの番号付きモデル ID が並び、詳細には `Claude Fable 5.1` のような正式名が表示されます。モデルを選んで Enter を押し、画面下のロール（通常の会話用なら `default`）を選んで Enter で適用してください。
 
-CLI のモデル指定には空白が含まれるため、上記のように引用符で囲みます。v0.3.0 では `opus`・`sonnet`・`haiku` の可変エイリアスを登録しません。以前の `anthropic agent sdk/opus` などを保存している場合は、`/model` から番号付きのモデルに選び直してください。v0.1.0 の旧カテゴリ `claude-agent-sdk` も登録しません。
+v0.4.0 ではカテゴリ名をハイフン区切りの `anthropic-agent-sdk` に統一しました。以前のカテゴリ名でモデルを保存している場合は、`/model` から選び直してください。`opus`・`sonnet`・`haiku` の可変エイリアスや旧カテゴリは登録しません。
 
 解除は `omp plugin uninstall omp-claude-agent-sdk` です。
 
@@ -63,7 +63,7 @@ API キーなどの環境設定を意図的に使う場合のみ、次のよう�
 
 ```sh
 OMP_CLAUDE_AUTH=environment ANTHROPIC_API_KEY=... \
-  omp -e ./src/index.ts --model "anthropic agent sdk/claude-opus-5-5"
+  omp -e ./src/index.ts --model anthropic-agent-sdk/claude-opus-5-5
 ```
 
 プランの制限と利用条件は Anthropic 側に従います。omp の `--api-key` や `/login anthropic` はこの SDK プロバイダーの認証には使用しません。
@@ -81,8 +81,8 @@ SDK の `supportedModels()` を使用します。通常の SDK 一覧は推奨�
 omp の標準モデルキャッシュ（24 時間）を利用します。新モデル・権限変更をすぐ反映したい場合は、`/model` の F5、または次を実行してください。
 
 ```sh
-omp models refresh "anthropic agent sdk"
-omp models "anthropic agent sdk"
+omp models refresh anthropic-agent-sdk
+omp models anthropic-agent-sdk
 ```
 
 SDK とモデルカタログの更新はプラグイン依存関係に従います。使用する SDK／バイナリが未対応のモデルを、このプラグインだけで有効化することはできません。未取得・未キャッシュで取得に失敗した場合、架空のモデル一覧へ置き換えません。
