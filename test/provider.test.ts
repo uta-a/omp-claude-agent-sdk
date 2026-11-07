@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { Context, Model } from "@oh-my-pi/pi-ai";
 import { API, PROVIDER, promptCacheTtl, promptCachingDisabled, sdkEnvironment, streamClaudeAgentSdk } from "../src/provider.ts";
@@ -117,6 +117,32 @@ describe("SDK stream boundaries", () => {
     const { output } = await collect([assistant([{ type: "text", text: "Partial" }])]);
     expect(output.stopReason).toBe("error");
     expect(output.errorMessage).toContain("without a result");
+  });
+
+  test("completed and failed requests retain elapsed time for OMP throughput", async () => {
+    let now = 1000;
+    const clock = spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      for (const failed of [false, true]) {
+        now = 1000;
+        const stream = streamClaudeAgentSdk(model, context, {}, () => ({
+          async *[Symbol.asyncIterator]() {
+            now = 1250;
+            yield assistant([{ type: "text", text: "Hello" }]) as SDKMessage;
+            now = 2000;
+            yield result(failed
+              ? { subtype: "error_during_execution", is_error: true, errors: ["request failed"] }
+              : {}) as unknown as SDKMessage;
+          },
+          close() {},
+        }));
+        const output = await stream.result();
+        expect(output.stopReason).toBe(failed ? "error" : "stop");
+        expect(output.duration).toBe(1000);
+      }
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   test("pre-aborted requests never start a subprocess", async () => {
@@ -247,57 +273,6 @@ test("the pinned prompt cache TTL follows the auth mode unless set explicitly", 
   expect(promptCacheTtl({ OMP_CLAUDE_AUTH: "environment", CLAUDE_CODE_PROMPT_CACHE_TTL: "1h" })).toBe("1h");
   expect(promptCacheTtl({ CLAUDE_CODE_PROMPT_CACHE_TTL: "10m" })).toBe("1h");
   expect(["5m", "1h"]).toContain(sdkEnvironment({}).CLAUDE_CODE_PROMPT_CACHE_TTL!);
-});
-
-describe("context size guard", () => {
-  const big = (chars: number): Context => ({ messages: [{ role: "user", timestamp: 1, content: "x".repeat(chars) }] });
-  async function run(input: Context, limit?: string) {
-    const previous = process.env.OMP_CLAUDE_MAX_CONTEXT_TOKENS;
-    if (limit === undefined) delete process.env.OMP_CLAUDE_MAX_CONTEXT_TOKENS;
-    else process.env.OMP_CLAUDE_MAX_CONTEXT_TOKENS = limit;
-    let started = false;
-    try {
-      const output = await streamClaudeAgentSdk(model, input, {}, () => {
-        started = true;
-        return fixture([result()]).run();
-      }).result();
-      return { output, started };
-    } finally {
-      if (previous === undefined) delete process.env.OMP_CLAUDE_MAX_CONTEXT_TOKENS;
-      else process.env.OMP_CLAUDE_MAX_CONTEXT_TOKENS = previous;
-    }
-  }
-
-  test("an oversized context fails before the SDK starts", async () => {
-    const { output, started } = await run(big(400_000));
-    expect(started).toBe(false);
-    expect(output.stopReason).toBe("error");
-    expect(output.errorMessage).toContain("OMP_CLAUDE_MAX_CONTEXT_TOKENS");
-    expect(output.errorMessage).toContain("100000");
-  });
-
-  test("a context under the default limit is sent", async () => {
-    const { output, started } = await run(big(200_000));
-    expect(started).toBe(true);
-    expect(output.stopReason).toBe("stop");
-  });
-
-  test("the limit counts multibyte text, system prompt, tools and images", async () => {
-    expect((await run({ messages: [{ role: "user", timestamp: 1, content: "あ".repeat(120_000) }] })).started).toBe(false);
-    expect((await run({ systemPrompt: ["x".repeat(400_000)], messages: context.messages })).started).toBe(false);
-    expect((await run({ messages: context.messages, tools: [{ ...tools![0], description: "x".repeat(400_000) }] })).started).toBe(false);
-    const images = Array.from({ length: 4 }, () => ({ type: "image" as const, mimeType: "image/png", data: "aW1hZ2U=" }));
-    expect((await run({ messages: [{ role: "user", timestamp: 1, content: images }] }, "5000")).started).toBe(false);
-  });
-
-  test("the limit can be raised, disabled with 0, and rejects invalid values", async () => {
-    expect((await run(big(400_000), "200000")).started).toBe(true);
-    expect((await run(big(400_000), "0")).started).toBe(true);
-    expect((await run(big(30_000), "5000")).started).toBe(false);
-    const invalid = await run(context, "lots");
-    expect(invalid.started).toBe(false);
-    expect(invalid.output.errorMessage).toContain("OMP_CLAUDE_MAX_CONTEXT_TOKENS");
-  });
 });
 
 test("disabled prompt caching sends no transcript breakpoint", async () => {

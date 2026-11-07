@@ -32,17 +32,3 @@ export function conversationPrompt(context: Context): Array<{ type: "text"; text
     return [{ type: "text" as const, text: JSON.stringify(entry) }, ...images];
   });
 }
-
-// Images are counted at the API's ~1,600-token cap for a resized image.
-const IMAGE_TOKENS = 1600;
-
-// A deliberately high estimate for the pre-send guard: about 3 UTF-8 bytes per
-// token covers ASCII code and JSON as well as Japanese text (~1 token/char).
-export function estimateContextTokens(context: Context, content: ReturnType<typeof conversationPrompt>): number {
-  const text = [
-    ...context.systemPrompt ?? [], BRIDGE_INSTRUCTIONS, JSON.stringify(context.tools ?? []),
-    ...content.map(block => block.type === "text" ? block.text : ""),
-  ];
-  const bytes = text.reduce((total, part) => total + Buffer.byteLength(part), 0);
-  return Math.ceil(bytes / 3) + content.filter(block => block.type === "image").length * IMAGE_TOKENS;
-}

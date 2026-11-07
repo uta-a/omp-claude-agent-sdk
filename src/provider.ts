@@ -9,7 +9,7 @@ import {
   type ToolCall,
 } from "@oh-my-pi/pi-ai";
 import { createToolBridge } from "./bridge.ts";
-import { BRIDGE_INSTRUCTIONS, conversationPrompt, estimateContextTokens } from "./conversation.ts";
+import { BRIDGE_INSTRUCTIONS, conversationPrompt } from "./conversation.ts";
 
 // OMP displays the provider ID verbatim as the /model category label.
 export const PROVIDER = "anthropic-agent-sdk";
@@ -39,17 +39,6 @@ export function sdkEnvironment(options: SimpleStreamOptions): NodeJS.ProcessEnv 
   env.CLAUDE_CODE_PROMPT_CACHE_TTL = promptCacheTtl(env);
   if (options.maxTokens !== undefined) env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(options.maxTokens);
   return env;
-}
-
-export const DEFAULT_MAX_CONTEXT_TOKENS = 100_000;
-
-// Guards against silently sending a huge history, e.g. after switching a long
-// session from another provider. 0 disables the guard.
-export function maxContextTokens(env: NodeJS.ProcessEnv = process.env): number {
-  const value = env.OMP_CLAUDE_MAX_CONTEXT_TOKENS;
-  if (value === undefined || value === "") return DEFAULT_MAX_CONTEXT_TOKENS;
-  if (!/^\d+$/.test(value)) throw new Error(`OMP_CLAUDE_MAX_CONTEXT_TOKENS must be a non-negative integer, got ${JSON.stringify(value)}`);
-  return Number(value);
 }
 
 // Mirrors Claude Code's automatic choice: 1h for the subscription login, 5m for
@@ -87,6 +76,7 @@ async function produce(
   options: SimpleStreamOptions,
   runQuery: QueryRunner,
 ): Promise<void> {
+  const startTime = performance.now();
   const output: AssistantMessage = {
     role: "assistant", api: API, provider: PROVIDER, model: model.id,
     content: [], stopReason: "stop", timestamp: Date.now(),
@@ -118,11 +108,6 @@ async function produce(
     }
     const tools = options.toolChoice === "none" ? [] : context.tools ?? [];
     const content = conversationPrompt(context);
-    const limit = maxContextTokens();
-    const estimate = estimateContextTokens({ ...context, tools }, content);
-    if (limit > 0 && estimate > limit) {
-      throw new Error(`Claude Agent SDK: estimated context of ~${estimate} tokens exceeds OMP_CLAUDE_MAX_CONTEXT_TOKENS=${limit}; compact the conversation, or raise the limit (0 disables it)`);
-    }
     if (tools.length) bridge = createToolBridge(tools);
     const env = sdkEnvironment(options);
     const sdkOptions: Options = {
@@ -260,11 +245,13 @@ async function produce(
       stream.push({ type: "toolcall_end", contentIndex, toolCall, partial: output });
     }
     output.stopReason = pendingTools.length ? "toolUse" : terminal.stop_reason === "max_tokens" ? "length" : "stop";
+    output.duration = performance.now() - startTime;
     stream.push({ type: "done", reason: output.stopReason, message: output });
   } catch (error) {
     output.stopReason = controller.signal.aborted || options.signal?.aborted ? "aborted" : "error";
     output.errorMessage = error instanceof Error ? error.message : String(error);
     if (stderr && output.stopReason === "error") output.errorMessage += `\n${stderr.trim()}`;
+    output.duration = performance.now() - startTime;
     stream.push({ type: "error", reason: output.stopReason, error: output });
   } finally {
     options.signal?.removeEventListener("abort", abort);
