@@ -27,13 +27,17 @@ SDK はプラットフォーム用 Claude Code バイナリを同梱します。
 ```sh
 omp plugin marketplace add uta-a/omp-claude-agent-sdk
 omp plugin install omp-claude-agent-sdk@omp-claude-agent-sdk
+bun install --cwd "$HOME/.omp/plugins/node_modules/omp-claude-agent-sdk" --frozen-lockfile
 ```
+
+OMP 18.18.0 の Marketplace は依存パッケージを自動インストールしないため、3 行目も必要です。このパスは既定のユーザー設定ディレクトリの場合です。別のプロファイル・設定ディレクトリや project scope を使っている場合は、その `plugins/node_modules/omp-claude-agent-sdk` を指定してください。
 
 更新する場合：
 
 ```sh
 omp plugin marketplace update omp-claude-agent-sdk
 omp plugin upgrade omp-claude-agent-sdk@omp-claude-agent-sdk
+bun install --cwd "$HOME/.omp/plugins/node_modules/omp-claude-agent-sdk" --frozen-lockfile
 ```
 
 既に GitHub 直接インストールやローカルリンクで導入済みの場合、同じプラグインを重複して登録しないでください。Marketplace へ切り替える場合は、先に `omp plugin uninstall omp-claude-agent-sdk` で既存の登録を解除します。インストール・更新後は omp を再起動してください。
