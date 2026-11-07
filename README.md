@@ -55,6 +55,30 @@ v0.4.0 ではカテゴリ名をハイフン区切りの `anthropic-agent-sdk` �
 
 解除は `omp plugin uninstall omp-claude-agent-sdk` です。
 
+## 認証
+
+プラグイン側での認証設定は不要です。Claude Code のログインをそのまま使います（omp の `/login` は使いません）。
+
+```sh
+claude auth login    # 初回のみ。ブラウザで Claude アカウントにログイン
+claude auth status   # "loggedIn": true なら完了
+```
+
+ログイン期限切れで `authentication_failed` が出た場合は、再度 `claude auth login` を実行してください。
+
+## 利用規約について
+
+Anthropic のヘルプ記事 [Use the Claude Agent SDK with your Claude plan](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) では、Agent SDK および Agent SDK で作られたサードパーティアプリの利用は、Claude プランでログインしている場合サブスクリプションの利用枠から消費されると案内されています。また [Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) では、Pro・Max・Ultra の利用枠は Claude Code と Agent SDK の通常の個人利用を前提としています。
+
+このプラグインを使う際は次を守ってください。
+
+- **各利用者が自分の Claude アカウントで、Anthropic 純正の手順（`claude auth login`）でログインすること。** プラグインは認証情報を収集・保存しません。
+- **アカウント・利用枠の共有、他人の利用の肩代わり、再販は禁止です。**
+- 通常の個人利用を大きく超える大量の自動実行は避けてください。
+- Anthropic の [Usage Policy](https://www.anthropic.com/legal/aup) と各プランの規約に従ってください。
+
+Anthropic の方針は変更される場合があります。利用前に最新の公式文書を確認してください。本 README は法的助言ではありません。
+
 ## 認証と料金
 
 既定では Claude Code のログインを使います。omp の別プロバイダー用 API キーを誤って引き継がないよう、子プロセスから `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_OAUTH_TOKEN`、`ANTHROPIC_BASE_URL`、`ANTHROPIC_FOUNDRY_API_KEY` と Bedrock／Vertex／Foundry 選択フラグを除きます。明示的な `CLAUDE_CODE_OAUTH_TOKEN` は引き継ぎます。
