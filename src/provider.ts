@@ -11,7 +11,8 @@ import {
 import { createToolBridge } from "./bridge.ts";
 import { BRIDGE_INSTRUCTIONS, conversationPrompt } from "./conversation.ts";
 
-export const PROVIDER = "claude-agent-sdk";
+// OMP displays the provider ID verbatim as the /model category label.
+export const PROVIDER = "anthropic agent sdk";
 export const API = "claude-agent-sdk-stream";
 
 type QueryHandle = AsyncIterable<SDKMessage> & { close(): void };

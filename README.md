@@ -2,9 +2,9 @@
 
 Claude Agent SDK 経由で Claude を使う [Oh My Pi (omp)](https://github.com/can1357/oh-my-pi) プラグインです。
 
-- `claude-agent-sdk/opus`
-- `claude-agent-sdk/sonnet`
-- `claude-agent-sdk/haiku`
+- `anthropic agent sdk/opus`
+- `anthropic agent sdk/sonnet`
+- `anthropic agent sdk/haiku`
 
 エイリアスの具体的なモデルは Claude Code とアカウントの利用権限で決まります。テキスト・画像入力、テキスト／thinking のストリーミング、omp のツール呼び出し、キャンセルに対応します。
 
@@ -22,10 +22,10 @@ GitHub から直接インストールできます。npm 公開は不要です。
 
 ```sh
 omp plugin install github:uta-a/omp-claude-agent-sdk
-omp --model claude-agent-sdk/opus
+omp --model "anthropic agent sdk/opus"
 ```
 
-バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.1.0` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
+バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.2.0` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
 
 ## ローカル開発
 
@@ -33,17 +33,23 @@ omp --model claude-agent-sdk/opus
 
 ```sh
 bun install
-omp -e ./src/index.ts --model claude-agent-sdk/opus
+omp -e ./src/index.ts --model "anthropic agent sdk/opus"
 ```
 
 継続的に使う場合はローカルプラグインとしてリンクします。これはユーザーの omp プラグイン設定を変更します。
 
 ```sh
 omp plugin link .
-omp --model claude-agent-sdk/opus
+omp --model "anthropic agent sdk/opus"
 ```
 
-起動後は `/model` で `claude-agent-sdk` のモデルを選択できます。解除は `omp plugin uninstall omp-claude-agent-sdk` です。
+### `/model` から選ぶ
+
+インストール後に omp を起動（既に起動中なら再起動）し、`/model` を開きます。左側のカテゴリ **`anthropic agent sdk`** を選ぶと、`opus`・`sonnet`・`haiku` が並びます。モデルを選んで Enter を押し、画面下のロール（通常の会話用なら `default`）を選んで Enter で適用してください。
+
+CLI のモデル指定には空白が含まれるため、上記のように引用符で囲みます。v0.1.0 の `claude-agent-sdk/…` から変更したため、保存済みのモデル指定も新しい名前へ変更してください。旧カテゴリは登録しません。
+
+解除は `omp plugin uninstall omp-claude-agent-sdk` です。
 
 ## 認証と料金
 
@@ -53,7 +59,7 @@ API キーなどの環境設定を意図的に使う場合のみ、次のよう�
 
 ```sh
 OMP_CLAUDE_AUTH=environment ANTHROPIC_API_KEY=... \
-  omp -e ./src/index.ts --model claude-agent-sdk/opus
+  omp -e ./src/index.ts --model "anthropic agent sdk/opus"
 ```
 
 プランの制限と利用条件は Anthropic 側に従います。omp の `--api-key` や `/login anthropic` はこの SDK プロバイダーの認証には使用しません。
