@@ -51,7 +51,7 @@ omp plugin install github:uta-a/omp-claude-agent-sdk
 omp --model anthropic-agent-sdk/claude-opus-5-5
 ```
 
-バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.4.1` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
+バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.5.0` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
 
 ## ローカル開発
 
@@ -166,6 +166,8 @@ bun test
 v0.3.0 では omp 18.18.0 / Agent SDK 0.3.319 で、Fable 5／5.1 を含む 17 ID の発見と `/model` 表示を確認しました。Opus 5.5 と日付付き Haiku 4.5 は、応答の実際のモデル ID も選択した ID と一致することを確認しました。Fable の推論は実行していません。
 
 v0.4.1 では omp 18.18.0 / Agent SDK 0.3.319 / Haiku 4.5 で、`read` と `bash` の実行、実際のファイル内容とコマンド出力を受け取った最終回答まで確認しました。
+
+v0.5.0 では Agent SDK 0.3.319 / Haiku で、ツール呼び出しを含む 4 リクエストの短い会話を実行し、2 リクエスト目以降は前リクエストまでの履歴をキャッシュから読み、書き込みが増えた分（約 470 トークン）に収まることを確認しました。
 
 ## 参照
 
