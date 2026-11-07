@@ -60,6 +60,15 @@ export function promptCacheTtl(env: NodeJS.ProcessEnv): "5m" | "1h" {
   return env.OMP_CLAUDE_AUTH === "environment" ? "5m" : "1h";
 }
 
+// Claude Code drops its own breakpoints under these settings; ours must follow.
+const truthy = (value: string | undefined) => ["1", "true", "yes", "on"].includes(value?.toLowerCase() ?? "");
+export function promptCachingDisabled(env: NodeJS.ProcessEnv, modelId: string): boolean {
+  if (truthy(env.DISABLE_PROMPT_CACHING)) return true;
+  const id = modelId.toLowerCase();
+  return ["haiku", "sonnet", "opus", "fable", "mythos"].some(family =>
+    id.includes(family) && truthy(env[`DISABLE_PROMPT_CACHING_${family.toUpperCase()}`]));
+}
+
 export function streamClaudeAgentSdk(
   model: Model,
   context: Context,
@@ -142,7 +151,7 @@ async function produce(
     // Claude Code marks only its trailing environment message, which follows this
     // prompt, so mark the transcript end for the next turn to read it back.
     const last = content.at(-1);
-    if (last) Object.assign(last, { cache_control: { type: "ephemeral", ttl: promptCacheTtl(env) } });
+    if (last && !promptCachingDisabled(env, model.id)) Object.assign(last, { cache_control: { type: "ephemeral", ttl: promptCacheTtl(env) } });
     active = runQuery({
       prompt: (async function* () {
         yield { type: "user" as const, message: { role: "user" as const, content }, parent_tool_use_id: null, session_id: "" };

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { Context, Model } from "@oh-my-pi/pi-ai";
-import { API, PROVIDER, promptCacheTtl, sdkEnvironment, streamClaudeAgentSdk } from "../src/provider.ts";
+import { API, PROVIDER, promptCacheTtl, promptCachingDisabled, sdkEnvironment, streamClaudeAgentSdk } from "../src/provider.ts";
 import { conversationPrompt } from "../src/conversation.ts";
 
 const model = { id: "haiku", api: API, provider: PROVIDER } as Model;
@@ -298,4 +298,31 @@ describe("context size guard", () => {
     expect(invalid.started).toBe(false);
     expect(invalid.output.errorMessage).toContain("OMP_CLAUDE_MAX_CONTEXT_TOKENS");
   });
+});
+
+test("disabled prompt caching sends no transcript breakpoint", async () => {
+  expect(promptCachingDisabled({}, "claude-opus-5-5")).toBe(false);
+  expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING: "1" }, "claude-opus-5-5")).toBe(true);
+  expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING: "true" }, "haiku")).toBe(true);
+  expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING: "0" }, "haiku")).toBe(false);
+  expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING_OPUS: "1" }, "claude-opus-5-5")).toBe(true);
+  expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING_OPUS: "1" }, "claude-haiku-5-5")).toBe(false);
+  expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING_HAIKU: "1" }, "haiku")).toBe(true);
+  const previous = process.env.DISABLE_PROMPT_CACHING;
+  process.env.DISABLE_PROMPT_CACHING = "1";
+  let sent: Array<Record<string, unknown>> = [];
+  try {
+    await streamClaudeAgentSdk(model, context, {}, params => ({
+      async *[Symbol.asyncIterator]() {
+        for await (const message of params.prompt as AsyncIterable<{ message: { content: Array<Record<string, unknown>> } }>) sent = message.message.content;
+        yield result() as unknown as SDKMessage;
+      },
+      close() {},
+    })).result();
+  } finally {
+    if (previous === undefined) delete process.env.DISABLE_PROMPT_CACHING;
+    else process.env.DISABLE_PROMPT_CACHING = previous;
+  }
+  expect(sent).toHaveLength(1);
+  expect(sent.some(block => "cache_control" in block)).toBe(false);
 });
