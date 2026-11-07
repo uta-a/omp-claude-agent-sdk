@@ -22,14 +22,32 @@ SDK はプラットフォーム用 Claude Code バイナリを同梱します。
 
 ## インストール
 
-GitHub から直接インストールできます。npm 公開は不要です。
+### Marketplace としてインストール
+
+```sh
+omp plugin marketplace add uta-a/omp-claude-agent-sdk
+omp plugin install omp-claude-agent-sdk@omp-claude-agent-sdk
+```
+
+更新する場合：
+
+```sh
+omp plugin marketplace update omp-claude-agent-sdk
+omp plugin upgrade omp-claude-agent-sdk@omp-claude-agent-sdk
+```
+
+既に GitHub 直接インストールやローカルリンクで導入済みの場合、同じプラグインを重複して登録しないでください。Marketplace へ切り替える場合は、先に `omp plugin uninstall omp-claude-agent-sdk` で既存の登録を解除します。インストール・更新後は omp を再起動してください。
+
+### GitHub から直接インストール
+
+Marketplace を使わずに GitHub から直接インストールすることもできます。npm 公開は不要です。
 
 ```sh
 omp plugin install github:uta-a/omp-claude-agent-sdk
 omp --model anthropic-agent-sdk/claude-opus-5-5
 ```
 
-バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.4.0` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
+バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.4.1` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
 
 ## ローカル開発
 
@@ -114,6 +132,7 @@ SDK とモデルカタログの更新はプラグイン依存関係に従いま�
 ## 動作方式と制約
 
 - **ツールの実行・承認は omp が担当します。** SDK 内蔵ツールを無効化し、現在の omp ツールの JSON Schema を非実行 MCP サーバーで公開します。SDK の `PreToolUse` フックが呼び出しを `defer` し、通常の omp ツール呼び出しへ変換します。SDK 側で実行しようとした場合も拒否します。
+  v0.4.1 では `read`・`bash` などの OMP 名と `mcp__omp__read` などの MCP 名の両方を解決します。SDK の `toolAliases` でも OMP 名を MCP ツールへ転送します。未公開のツール名や、`defer` されていない呼び出しは引き続き拒否します。
 - **履歴の正本は omp です。** 各リクエストで最新の会話を JSON トランスクリプトとして渡します。SDK のネイティブな複数ロール履歴の再生ではありません。SDK セッションを永続化・再開せず、omp の分岐・履歴編集・圧縮・モデル切替後にも、その時点の履歴を渡します。過去の thinking と署名は再送しません。
 - 子プロセスはリクエストごとに起動します。通常の HTTP プロバイダーより起動負荷とトランスクリプト形式の追加トークンが生じます。
 - ユーザー／プロジェクト／ローカルの Claude 設定と外部 MCP は読み込みません。管理ポリシーは SDK 側の仕様に従い適用される場合があります。作業ディレクトリとキャンセルシグナルは omp から引き継ぎます。
@@ -139,6 +158,8 @@ bun test
 - 応答ストリーミング中のキャンセル
 
 v0.3.0 では omp 18.18.0 / Agent SDK 0.3.319 で、Fable 5／5.1 を含む 17 ID の発見と `/model` 表示を確認しました。Opus 5.5 と日付付き Haiku 4.5 は、応答の実際のモデル ID も選択した ID と一致することを確認しました。Fable の推論は実行していません。
+
+v0.4.1 では omp 18.18.0 / Agent SDK 0.3.319 / Haiku 4.5 で、`read` と `bash` の実行、実際のファイル内容とコマンド出力を受け取った最終回答まで確認しました。
 
 ## 参照
 

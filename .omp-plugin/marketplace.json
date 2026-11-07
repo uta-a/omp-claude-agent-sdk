@@ -1,0 +1,21 @@
+{
+  "name": "omp-claude-agent-sdk",
+  "owner": { "name": "uta-a" },
+  "metadata": {
+    "description": "Claude Agent SDK provider for OMP",
+    "version": "0.4.1"
+  },
+  "plugins": [
+    {
+      "name": "omp-claude-agent-sdk",
+      "description": "Use Claude models through the Anthropic Agent SDK in OMP",
+      "version": "0.4.1",
+      "source": "./",
+      "author": { "name": "uta-a" },
+      "homepage": "https://github.com/uta-a/omp-claude-agent-sdk",
+      "repository": "https://github.com/uta-a/omp-claude-agent-sdk",
+      "category": "development",
+      "tags": ["omp", "claude", "agent-sdk", "provider"]
+    }
+  ]
+}

@@ -96,6 +96,7 @@ async function produce(
       settingSources: [],
       strictMcpConfig: true,
       mcpServers: bridge ? { omp: bridge } : {},
+      toolAliases: Object.fromEntries(tools.map(tool => [tool.name, `mcp__omp__${tool.name}`])),
       includePartialMessages: true,
       persistSession: false,
       maxTurns: 1,
@@ -128,7 +129,9 @@ async function produce(
         output.upstreamModel = message.message.model;
         for (const [index, block] of message.message.content.entries()) {
           if (block.type === "tool_use") {
-            const name = block.name.startsWith("mcp__omp__") ? block.name.slice("mcp__omp__".length) : "";
+            // SDK assistant blocks retain model-emitted names even when aliases
+            // resolve them to our MCP bridge for deferral.
+            const name = block.name.startsWith("mcp__omp__") ? block.name.slice("mcp__omp__".length) : block.name;
             if (!tools.some(tool => tool.name === name)) throw new Error(`SDK requested an unknown OMP tool: ${block.name}`);
             pendingTools.push({ type: "toolCall", id: block.id, name, arguments: block.input as Record<string, unknown> });
           } else if (block.type === "text" || block.type === "thinking") {

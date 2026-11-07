@@ -67,6 +67,24 @@ describe("SDK stream boundaries", () => {
     expect(events.filter(event => event.type === "toolcall_end").map(event => event.toolCall.id)).toEqual(["one", "two"]);
   });
 
+  test("bare read and bash calls retain their names, arguments and IDs when deferred", async () => {
+    const { output, events } = await collect([
+      assistant([
+        { type: "tool_use", id: "read-id", name: "read", input: { path: "README.md" } },
+        { type: "tool_use", id: "bash-id", name: "bash", input: { command: "pwd" } },
+      ]), result({ stop_reason: "tool_deferred" }),
+    ], { ...context, tools: [
+      { name: "read", description: "Read a file", parameters: { type: "object", properties: { path: { type: "string" } } } },
+      { name: "bash", description: "Run a command", parameters: { type: "object", properties: { command: { type: "string" } } } },
+    ] });
+    expect(output.stopReason).toBe("toolUse");
+    expect(output.content).toEqual([
+      { type: "toolCall", id: "read-id", name: "read", arguments: { path: "README.md" } },
+      { type: "toolCall", id: "bash-id", name: "bash", arguments: { command: "pwd" } },
+    ]);
+    expect(events.filter(event => event.type === "toolcall_end").map(event => event.toolCall.name)).toEqual(["read", "bash"]);
+  });
+
   test("an SDK failure cannot release pending tool calls", async () => {
     const { output, events } = await collect([
       assistant([{ type: "tool_use", id: "one", name: "mcp__omp__lookup", input: { key: "a" } }]),
@@ -80,6 +98,10 @@ describe("SDK stream boundaries", () => {
   test("undeferred calls and unknown tools fail closed", async () => {
     for (const [name, stopReason, error] of [
       ["mcp__omp__lookup", "end_turn", "did not defer"],
+      ["lookup", "end_turn", "did not defer"],
+      ["read", "tool_deferred", "unknown OMP tool"],
+      ["bash", "tool_deferred", "unknown OMP tool"],
+      ["mcp__other__lookup", "tool_deferred", "unknown OMP tool"],
       ["Bash", "tool_deferred", "unknown OMP tool"],
     ]) {
       const { output } = await collect([

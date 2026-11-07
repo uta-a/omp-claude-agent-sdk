@@ -1,6 +1,6 @@
 {
   "name": "omp-claude-agent-sdk",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Claude Agent SDK model provider for Oh My Pi",
   "repository": {
     "type": "git",
