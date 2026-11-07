@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { Context, Model } from "@oh-my-pi/pi-ai";
-import { API, PROVIDER, streamClaudeAgentSdk } from "../src/provider.ts";
+import { API, PROVIDER, promptCacheTtl, sdkEnvironment, streamClaudeAgentSdk } from "../src/provider.ts";
 import { conversationPrompt } from "../src/conversation.ts";
 
 const model = { id: "haiku", api: API, provider: PROVIDER } as Model;
@@ -154,9 +154,9 @@ test("history preserves tool failures and IDs without leaking signed thinking", 
     { role: "toolResult", toolCallId: "call", toolName: "lookup", content: [{ type: "text", text: "not found" }], isError: true, timestamp: 2 },
   ] });
   expect(Array.isArray(content)).toBe(true);
-  const transcript = JSON.parse((content as Array<{ text: string }>)[0].text);
-  expect(transcript.conversation[0].content).toEqual([{ type: "toolCall", id: "call", name: "lookup", arguments: { key: "x" } }]);
-  expect(transcript.conversation[1]).toMatchObject({ toolCallId: "call", isError: true });
+  const transcript = (content as Array<{ text: string }>).map(block => JSON.parse(block.text));
+  expect(transcript[0].content).toEqual([{ type: "toolCall", id: "call", name: "lookup", arguments: { key: "x" } }]);
+  expect(transcript[1]).toMatchObject({ toolCallId: "call", isError: true });
   expect(JSON.stringify(transcript)).not.toContain("private");
 });
 
@@ -174,9 +174,77 @@ test("image attachments preserve bytes and transcript positions", () => {
     ],
   }] });
   const blocks = content as Array<{ type: string; text?: string; source?: unknown }>;
-  expect(JSON.parse(blocks[0].text!).conversation[0].content[1]).toEqual({ type: "text", text: "[Attached image 1]" });
+  expect(JSON.parse(blocks[0].text!).content[1]).toEqual({ type: "text", text: "[Attached image 1]" });
   expect(blocks[1]).toEqual({ type: "image", source: { type: "base64", media_type: "image/png", data: "aW1hZ2U=" } });
   expect(() => conversationPrompt({ messages: [{
     role: "user", timestamp: 1, content: [{ type: "image", mimeType: "image/svg+xml", data: "PHN2Zz4=" }],
   }] })).toThrow("does not support image type");
+});
+
+describe("prompt cache prefix", () => {
+  const png = (data: string) => ({ type: "image" as const, mimeType: "image/png", data });
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+  const history: Context["messages"] = [
+    { role: "user", timestamp: 1, content: [{ type: "text", text: "Look at this \"quoted\"\nfile" }, png("Zmlyc3Q=")] },
+    { api: API, provider: PROVIDER, model: model.id, role: "assistant", usage, stopReason: "toolUse", timestamp: 2,
+      content: [{ type: "text", text: "Checking" }, { type: "toolCall", id: "call-1", name: "lookup", arguments: { key: "a", nested: { z: 1, y: [2] } } }] },
+    { role: "toolResult", toolCallId: "call-1", toolName: "lookup", isError: false, timestamp: 3, content: [{ type: "text", text: "found" }, png("c2Vjb25k")] },
+    { api: API, provider: PROVIDER, model: model.id, role: "assistant", usage, stopReason: "toolUse", timestamp: 4,
+      content: [{ type: "toolCall", id: "call-2", name: "lookup", arguments: { key: "b" } }, { type: "toolCall", id: "call-3", name: "lookup", arguments: { key: "c" } }] },
+    { role: "toolResult", toolCallId: "call-2", toolName: "lookup", isError: false, timestamp: 5, content: [{ type: "text", text: "two" }] },
+    { role: "toolResult", toolCallId: "call-3", toolName: "lookup", isError: true, timestamp: 6, content: [{ type: "text", text: "three" }] },
+    { role: "user", timestamp: 7, content: "Thanks" },
+  ];
+  const render = (count: number) => conversationPrompt({ messages: history.slice(0, count) }) as unknown[];
+
+  test("each turn's blocks are a byte-identical prefix of the next turn's blocks", () => {
+    for (let count = 1; count < history.length; count++) {
+      const current = render(count);
+      for (const added of [1, 2]) {
+        if (count + added > history.length) continue;
+        const next = render(count + added);
+        expect(next.length).toBeGreaterThan(current.length);
+        expect(JSON.stringify(next.slice(0, current.length))).toBe(JSON.stringify(current));
+      }
+    }
+  });
+
+  test("each history entry is its own block and images stay next to their entry", () => {
+    const blocks = render(history.length) as Array<{ type: string; text?: string; source?: { data: string } }>;
+    expect(blocks.map(block => block.type)).toEqual(["text", "image", "text", "text", "image", "text", "text", "text", "text"]);
+    expect(JSON.parse(blocks[0].text!)).toEqual({ role: "user", content: [{ type: "text", text: "Look at this \"quoted\"\nfile" }, { type: "text", text: "[Attached image 1]" }] });
+    expect(blocks[1].source!.data).toBe("Zmlyc3Q=");
+    expect(JSON.parse(blocks[3].text!).content[1]).toEqual({ type: "text", text: "[Attached image 2]" });
+    expect(blocks[4].source!.data).toBe("c2Vjb25k");
+    expect(JSON.parse(blocks[8].text!)).toEqual({ role: "user", content: "Thanks" });
+    expect(blocks.some(block => block.text?.includes("conversation"))).toBe(false);
+  });
+
+  test("only the last block of the sent prompt carries a cache breakpoint", async () => {
+    let sent: Array<Record<string, unknown>> = [];
+    let sentTtl: string | undefined;
+    const output = await streamClaudeAgentSdk(model, { messages: history }, {}, params => ({
+      async *[Symbol.asyncIterator]() {
+        sentTtl = params.options!.env!.CLAUDE_CODE_PROMPT_CACHE_TTL;
+        for await (const message of params.prompt as AsyncIterable<{ message: { content: Array<Record<string, unknown>> } }>) sent = message.message.content;
+        yield result() as unknown as SDKMessage;
+      },
+      close() {},
+    })).result();
+    expect(output.stopReason).toBe("stop");
+    expect(sent).toHaveLength(9);
+    expect(["5m", "1h"]).toContain(sentTtl!);
+    expect(sent.at(-1)!.cache_control).toEqual({ type: "ephemeral", ttl: sentTtl });
+    expect(sent.slice(0, -1).some(block => "cache_control" in block)).toBe(false);
+    expect(JSON.stringify(sent.map(({ cache_control: _, ...block }) => block))).toBe(JSON.stringify(conversationPrompt({ messages: history })));
+  });
+});
+
+test("the pinned prompt cache TTL follows the auth mode unless set explicitly", () => {
+  expect(promptCacheTtl({})).toBe("1h");
+  expect(promptCacheTtl({ OMP_CLAUDE_AUTH: "environment" })).toBe("5m");
+  expect(promptCacheTtl({ CLAUDE_CODE_PROMPT_CACHE_TTL: "5m" })).toBe("5m");
+  expect(promptCacheTtl({ OMP_CLAUDE_AUTH: "environment", CLAUDE_CODE_PROMPT_CACHE_TTL: "1h" })).toBe("1h");
+  expect(promptCacheTtl({ CLAUDE_CODE_PROMPT_CACHE_TTL: "10m" })).toBe("1h");
+  expect(["5m", "1h"]).toContain(sdkEnvironment({}).CLAUDE_CODE_PROMPT_CACHE_TTL!);
 });

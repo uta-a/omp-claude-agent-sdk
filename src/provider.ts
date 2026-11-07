@@ -1,4 +1,4 @@
-import { query, type McpSdkServerConfigWithInstance, type Options, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type McpSdkServerConfigWithInstance, type Options, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import {
   createAssistantMessageEventStream,
   type AssistantMessageEventStream,
@@ -34,8 +34,19 @@ export function sdkEnvironment(options: SimpleStreamOptions): NodeJS.ProcessEnv 
   }
   delete env.CLAUDECODE;
   env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
+  // Pin Claude Code's cache TTL so the transcript breakpoint can use the same
+  // one; the API rejects a 5m breakpoint placed before a 1h breakpoint.
+  env.CLAUDE_CODE_PROMPT_CACHE_TTL = promptCacheTtl(env);
   if (options.maxTokens !== undefined) env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(options.maxTokens);
   return env;
+}
+
+// Mirrors Claude Code's automatic choice: 1h for the subscription login, 5m for
+// API credentials. Pinned because its automatic choice can change mid-session.
+export function promptCacheTtl(env: NodeJS.ProcessEnv): "5m" | "1h" {
+  const ttl = env.CLAUDE_CODE_PROMPT_CACHE_TTL;
+  if (ttl === "5m" || ttl === "1h") return ttl;
+  return env.OMP_CLAUDE_AUTH === "environment" ? "5m" : "1h";
 }
 
 export function streamClaudeAgentSdk(
@@ -87,10 +98,11 @@ async function produce(
     }
     const tools = options.toolChoice === "none" ? [] : context.tools ?? [];
     if (tools.length) bridge = createToolBridge(tools);
+    const env = sdkEnvironment(options);
     const sdkOptions: Options = {
       model: model.id,
       cwd: options.cwd ?? process.cwd(),
-      env: sdkEnvironment(options),
+      env,
       abortController: controller,
       tools: [],
       settingSources: [],
@@ -110,9 +122,14 @@ async function produce(
         hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "defer" },
       })] }] },
     };
+    const content: SDKUserMessage["message"]["content"] = conversationPrompt(context);
+    // Claude Code marks only its trailing environment message, which follows this
+    // prompt, so mark the transcript end for the next turn to read it back.
+    const last = content.at(-1);
+    if (last) Object.assign(last, { cache_control: { type: "ephemeral", ttl: promptCacheTtl(env) } });
     active = runQuery({
       prompt: (async function* () {
-        yield { type: "user" as const, message: { role: "user" as const, content: conversationPrompt(context) }, parent_tool_use_id: null, session_id: "" };
+        yield { type: "user" as const, message: { role: "user" as const, content }, parent_tool_use_id: null, session_id: "" };
       })(),
       options: sdkOptions,
     });
