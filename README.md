@@ -51,7 +51,7 @@ omp plugin install github:uta-a/omp-claude-agent-sdk
 omp --model anthropic-agent-sdk/claude-opus-5-5
 ```
 
-バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.5.1` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
+バージョンを固定する場合は `omp plugin install github:uta-a/omp-claude-agent-sdk#v0.5.2` を使います。更新は `omp plugin upgrade omp-claude-agent-sdk` です。
 
 ## ローカル開発
 
